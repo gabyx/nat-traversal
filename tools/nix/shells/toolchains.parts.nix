@@ -5,6 +5,7 @@
   perSystem =
     {
       self',
+      pkgs,
       ...
     }:
     let
@@ -28,6 +29,7 @@
         {
           packages = [
             self'.packages.bootstrap
+            pkgs.stuntman
           ];
         }
       ];

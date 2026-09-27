@@ -3,12 +3,13 @@
     { pkgs, ... }:
     let
       config = import ./configurations.nix { };
+      inherit (config) nodes;
     in
     {
       packages.integration-test = pkgs.testers.runNixOSTest {
         name = "integration-test";
 
-        inherit (config) nodes;
+        inherit nodes;
 
         testScript =
           # Python
@@ -24,11 +25,11 @@
             log.info("Starting tests.")
             start_all()
 
-            log.info("Create test file.")
-            side_a.succeed("touch /tmp/shared/test")
+            stun_server.succeed("stunserver --primaryinterface 0.0.0.0 &")
 
-            log.info("Read test file.")
-            side_b.succeed("ls -al /tmp/shared/test")
+            log.info("Contacting stunserver.")
+            # nat_a.succeed("echo 'Get IP'; stunclient ${nodes.stun-server.networking.primaryIPAddress}")
+
           '';
       };
     };

@@ -1,5 +1,7 @@
 { ... }:
 let
+  # NOTE: https://applicative.systems/nixos-test-driver-manual/
+
   # Glossary:
   # LAN: Local Area Network  -- private address space, behind a NAT.
   # WAN: Wide Area Network   -- the "public" side, past the NAT.
@@ -76,6 +78,7 @@ let
           assignIP = true;
         };
       };
+
       # No default gateway: `wan` is directly attached to the vlan the
       # stun-server and nat-b sit on.
       #
@@ -118,17 +121,64 @@ let
     # *every* node (see nixos/modules/virtualisation/qemu-vm.nix, the `shared`
     # entry of virtualisation.sharedDirectories).
 
-    stun-server = { ... }: {
-      virtualisation.interfaces = {
-        wan = {
-          vlan = vlans.wan;
-          assignIP = true;
+    stun-server =
+      { pkgs, lib, ... }:
+      {
+        virtualisation.interfaces = {
+          wan = {
+            vlan = vlans.wan;
+            assignIP = true;
+          };
         };
-      };
-      # No default gateway: both routers are on this same segment.
+        # No default gateway: both routers are on this same segment.
 
-      networking.firewall.enable = false;
-    };
+        environment.systemPackages = [ pkgs.stuntman ]; # Also gives this node `stunclient`.
+
+        systemd.services.stunserver = {
+          description = "STUN server (stuntman)";
+
+          # `network-online.target` is only reached once an address is actually
+          # configured on `wan`; without it the unit can start while the
+          # interface is still address-less.
+          wants = [ "network-online.target" ];
+          after = [ "network-online.target" ];
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            # Enough for a client to learn
+            # its reflexive transport address (XOR-MAPPED-ADDRESS), which is all we need.
+            ExecStart = [
+              (lib.getExe' pkgs.stuntman "stunserver")
+              "--mode"
+              "basic"
+              "--family"
+              "4"
+              "--protocol"
+              "udp"
+              "--primaryport"
+              "3478"
+              "--verbosity"
+              "2"
+            ];
+
+            DynamicUser = true;
+            Restart = "on-failure";
+
+            # The daemon only needs a UDP socket.
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            PrivateTmp = true;
+            PrivateDevices = true;
+            NoNewPrivileges = true;
+            RestrictAddressFamilies = [
+              "AF_INET"
+              "AF_INET6"
+            ];
+          };
+        };
+
+        networking.firewall.enable = false;
+      };
   };
 in
 {
