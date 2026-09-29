@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, lib, ... }:
 let
   # NOTE: https://applicative.systems/nixos-test-driver-manual/
 
@@ -28,6 +28,20 @@ let
     wan = 3; # Wide Area Network for the stun-server, nat-a and nat-b.
   };
 
+  commonModule = {
+  };
+
+  # Write all IPs to a YAMl file.
+  writeConfig =
+    nodes:
+    pkgs.writeText "config.json" (
+      lib.generators.toJSON { } (
+        lib.concatMapAttrs (node: cfg: {
+          "${node}" = cfg.networking.primaryIPAddress;
+        }) nodes
+      )
+    );
+
   nodes = {
 
     #   NODE                    NODE                        NODE                    NODE
@@ -53,6 +67,11 @@ let
     side-a =
       { nodes, ... }:
       {
+        imports = [ commonModule ];
+
+        environment.variables = {
+          CONFIG_FILE = "${writeConfig nodes}";
+        };
         virtualisation.interfaces = {
           lan = {
             vlan = vlans.lan-a;
@@ -67,7 +86,12 @@ let
       };
 
     # The router on side A.
-    nat-a = { ... }: {
+    nat-a = { nodes, ... }: {
+      imports = [ commonModule ];
+      environment.variables = {
+        CONFIG_FILE = "${writeConfig nodes}";
+      };
+
       virtualisation.interfaces = {
         lan = {
           vlan = vlans.lan-a;
@@ -88,6 +112,12 @@ let
     side-b =
       { nodes, ... }:
       {
+        imports = [ commonModule ];
+
+        environment.variables = {
+          CONFIG_FILE = "${writeConfig nodes}";
+        };
+
         virtualisation.interfaces = {
           lan = {
             vlan = vlans.lan-b;
@@ -102,7 +132,13 @@ let
       };
 
     # The router on side B.
-    nat-b = { ... }: {
+    nat-b = { nodes, ... }: {
+      imports = [ commonModule ];
+
+      environment.variables = {
+        CONFIG_FILE = "${writeConfig nodes}";
+      };
+
       virtualisation.interfaces = {
         lan = {
           vlan = vlans.lan-b;
@@ -122,8 +158,18 @@ let
     # entry of virtualisation.sharedDirectories).
 
     stun-server =
-      { pkgs, lib, ... }:
       {
+        nodes,
+        pkgs,
+        lib,
+        ...
+      }:
+      {
+        imports = [ commonModule ];
+
+        environment.variables = {
+          CONFIG_FILE = "${writeConfig nodes}";
+        };
         virtualisation.interfaces = {
           wan = {
             vlan = vlans.wan;
@@ -147,7 +193,10 @@ let
           serviceConfig = {
             # Enough for a client to learn
             # its reflexive transport address (XOR-MAPPED-ADDRESS), which is all we need.
-            ExecStart = [
+            # NOTE: a *list* here renders as one `ExecStart=` line per element,
+            # and systemd only accepts multiple `ExecStart=` for `Type=oneshot`
+            # (hence `LoadState=bad-setting`). Join into a single command line.
+            ExecStart = lib.escapeShellArgs [
               (lib.getExe' pkgs.stuntman "stunserver")
               "--mode"
               "basic"
