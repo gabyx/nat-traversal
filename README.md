@@ -84,7 +84,7 @@ networking.nat = {
 which will create a `nixos-nat` table for `nftable` queryable with
 `nft list ruleset` as the following:
 
-```json
+```text
 table inet nixos-fw {...}
 
 table ip nixos-nat {
