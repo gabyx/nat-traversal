@@ -29,6 +29,13 @@ let
   };
 
   commonModule = {
+    # Use nftables instead of iptables.
+    networking.nftables.enable = true;
+
+    environment.systemPackages = [
+      pkgs.stuntman
+      pkgs.conntrack-tools
+    ]; # Give this node a `stunclient` for debugging.
   };
 
   # Write all IPs to a YAMl file.
@@ -37,7 +44,11 @@ let
     pkgs.writeText "config.json" (
       lib.generators.toJSON { } (
         lib.concatMapAttrs (node: cfg: {
-          "${node}" = cfg.networking.primaryIPAddress;
+          "${node}" = {
+            interfaces = lib.concatMapAttrs (name: icfg: {
+              "${name}" = (lib.elemAt icfg.ipv4.addresses 0).address;
+            }) (cfg.networking.interfaces);
+          };
         }) nodes
       )
     );
@@ -78,6 +89,7 @@ let
             assignIP = true;
           };
         };
+
         networking.firewall.enable = false; # Test nat-a's rules, not side-a's.
         networking.defaultGateway = {
           address = nodes.nat-a.networking.primaryIPAddress;
@@ -105,8 +117,46 @@ let
 
       # No default gateway: `wan` is directly attached to the vlan the
       # stun-server and nat-b sit on.
+      # NAT on Linux is 2 things, conntrack and src rewriting (masquerade).
+
+      # Packets from `side-a` to `stun_server`:
       #
-      # TODO(M2.5): networking.nat -- internal `lan`, external `wan`.
+      # side-a                                  nat-a                       stun-server
+      # ======                                  =====                       ===========
+      #  lan 192.168.1.3          lan 192.168.1.1 │ wan 192.168.3.1        wan 192.168.3.5
+      #  socket :5000                             │                        socket :3478
+      #     │                                     │                             │
+      #     │ (1) Binding Request                 │                             │
+      #     │ src 1.3:5000  dst 3.5:3478          │                             │
+      #     ├────────── vlan 1 ──────────►┐       │                             │
+      #     │                             │ conntrack: no entry → NEW           │
+      #     │                             │ post chain: masquerade              │
+      #     │                             │ store entry:                        │
+      #     │                             │   orig  1.3:5000 → 3.5:3478         │
+      #     │                             │   reply 3.5:3478 → 3.1:5000         │
+      #     │                             └──────►│ (2)                         │
+      #     │                                     │ src *3.1*:5000  dst 3.5:3478│
+      #     │                                     ├────────── vlan 3 ──────────►│
+      #     │                                     │                             │ reads src of the packet
+      #     │                                     │                             │ = 3.1:5000 → writes it into
+      #     │                                     │                             │ XOR-MAPPED-ADDRESS
+      #     │                                     │ (3) Binding Response        │
+      #     │                                     │ src 3.5:3478  dst 3.1:5000  │
+      #     │                                     │◄────────── vlan 3 ──────────┤
+      #     │                             ┌◄──────┤                             │
+      #     │                             │ conntrack: matches reply tuple      │
+      #     │                             │ → ESTABLISHED, un-NAT dst           │
+      #     │ (4)                         │                                     │
+      #     │ src 3.5:3478  dst *1.3:5000*│                                     │
+      #     │◄───────── vlan 1 ───────────┘                                     │
+      #     │                                                                   │
+      #     │ payload says: you are 192.168.3.1:5000   ← reflexive endpoint     │
+
+      networking.nat = {
+        enable = true;
+        internalInterfaces = [ "lan" ];
+        externalInterface = "wan";
+      };
     };
 
     side-b =
@@ -149,7 +199,15 @@ let
           assignIP = true;
         };
       };
-      # TODO(M2.5): networking.nat -- internal `lan`, external `wan`.
+
+      # No default gateway: `wan` is directly attached to the vlan the
+      # stun-server and nat-b sit on.
+      #
+      networking.nat = {
+        enable = true;
+        internalInterfaces = [ "lan" ];
+        externalInterface = "wan";
+      };
     };
 
     # A relay server (M7) is out of scope here. Signaling (M3) goes over the
@@ -177,8 +235,6 @@ let
           };
         };
         # No default gateway: both routers are on this same segment.
-
-        environment.systemPackages = [ pkgs.stuntman ]; # Also gives this node `stunclient`.
 
         systemd.services.stunserver = {
           description = "STUN server (stuntman)";
