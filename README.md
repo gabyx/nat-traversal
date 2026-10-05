@@ -12,7 +12,7 @@
 
 This little learning experiment contains a Rust exectuble to learn how
 NAT-traversal (a.k.a hole-punching) works. For the experiment we setup a NixOS
-VM test with the following nodes:
+VM test with the following nodes which are all NixOS configurations:
 
 ```mermaid
 flowchart LR
@@ -63,10 +63,110 @@ other at roughly the same time and keep retrying. An outbound datagram from
 (`conntrack`) entry on `nat-a`. `nat-a` then accepts an inbound datagram only if
 its source and destination match that entry's reply tuple, and only until the
 entry expires (30 secs. for UDP without a reply). The same holds for `nat-b`.
-The first datagrams may be dropped, because they can arrive before the receiving
+See `"net.netfilter.nf_conntrack_udp_timeout" = 30;" kernel boot options.` The
+first datagrams may be dropped, because they can arrive before the receiving
 side's NAT has an entry. After both sides have sent at least one datagram, each
 NAT has an entry, and datagrams pass in both directions. At the stage the
 NAT-traversal is done and a connection is established.
+
+## NAT Nodes
+
+Each NAT node (`nat-a` or `nat-b`) has the following settings:
+
+```nix
+networking.nat = {
+  enable = true;
+  internalInterfaces = [ "lan" ];
+  externalInterface = "wan";
+};
+```
+
+which will create a `nixos-nat` table for `nftable` queryable with
+`nft list ruleset` as the following:
+
+```json
+table inet nixos-fw {...}
+
+table ip nixos-nat {
+  chain pre {
+    type nat hook prerouting priority dstnat; policy accept; // <- This is the header of this chain.
+    // No rules here.
+  }
+
+  chain post {
+    type nat hook postrouting priority srcnat; policy accept;
+    // One rule here: namely rewriting the source ip: "masquerade"
+    iifname "lan" oifname "wan" masquerade comment "from internal interfaces"
+  }
+
+  chain out {
+    type nat hook output priority mangle; policy accept;
+    // No rules here.
+  }
+}
+```
+
+`nftables` is the successor of `iptables`. Both are front ends to the Linux
+kernel's `netfilter` framework. Its configuration is a ruleset, which NixOS
+generates in `/etc/nftables.conf`. Each chain in the ruleset is attached to one
+of the netfilter hooks `prerouting`, `input`, `forward`, `output` and
+`postrouting`. The kernel runs the chain for every packet that passes that hook.
+
+```mermaid
+flowchart LR
+  inIf(["packet arrives<br/>(lan or wan)"])
+  pre["<b>prerouting</b><br/>chain pre (dstnat, −100): empty<br/>conntrack: un-NAT reply dst<br/>3.1:5000 → 1.3:5000"]
+  route{"routing decision<br/>dst = own address?"}
+  input["<b>input</b><br/>nixos-fw input<br/>policy drop"]
+  local["local process<br/>on nat-a<br/>(sshd etc.)"]
+  output["<b>output</b><br/>chain out: empty<br/>(DNAT only)"]
+  fwd["<b>forward</b><br/>no filter<br/>(filterForward = false)"]
+  post["<b>postrouting</b><br/>chain post (srcnat, +100)<br/>iifname lan oifname wan<br/>→ masquerade"]
+  outIf(["packet leaves<br/>(lan or wan)"])
+
+  inIf --> pre --> route
+  route -- "yes: to this host" --> input --> local
+  route -- "no: through this host" --> fwd --> post
+  local --> output --> post
+  post --> outIf
+
+  linkStyle 0,1,4,5,8 stroke-width:3px
+
+```
+
+- `iifname "lan" oifname "wan" masquerade` applies to packets that enter on
+  `lan` and leave on `wan`. For the first packet of a flow, it creates a NAT
+  binding that rewrites the source address to the address of wan (192.168.3.1).
+  If the source port is already used by another binding, the port is changed as
+  well. Conntrack applies the binding to all later packets of the flow, and
+  applies the inverse rewrite to the replies.
+
+### Netfilter Tables Overview
+
+```mermaid
+  flowchart TB
+    subgraph US["user space"]
+      nft["nft<br/>(rules)"]
+      ctool["conntrack<br/>(flow table)"]
+    end
+
+    subgraph K["kernel"]
+      nftables["nf_tables<br/>runs rules"]
+      nat["nf_nat<br/>picks port, rewrites"]
+      ct["nf_conntrack<br/>tracks flows"]
+      hooks["netfilter hooks"]
+      ip["IP stack"]
+    end
+
+    nft -->|netlink| nftables
+    ctool -->|netlink| ct
+    nftables -->|"masquerade"| nat
+    nat --> ct
+    nftables --> hooks
+    nat --> hooks
+    ct --> hooks
+    ip -->|"packet at each hook"| hooks
+```
 
 ## Installation
 
@@ -91,6 +191,12 @@ just run --side b
 ```
 
 ## VM Tests
+
+Run the NixOS VM tests with:
+
+```bash
+just test-integration
+```
 
 ## Development
 

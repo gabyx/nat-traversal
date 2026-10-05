@@ -28,14 +28,29 @@ let
     wan = 3; # Wide Area Network for the stun-server, nat-a and nat-b.
   };
 
-  commonModule = {
+  commonModule = { nodes, ... }: {
     # Use nftables instead of iptables.
     networking.nftables.enable = true;
 
     environment.systemPackages = [
-      pkgs.stuntman
-      pkgs.conntrack-tools
-    ]; # Give this node a `stunclient` for debugging.
+      pkgs.stuntman # Give every node a `stunclient` for debugging.
+      pkgs.conntrack-tools # Also make `conntrack` tool available.
+    ];
+
+    environment.variables = {
+      CONFIG_FILE = "${writeConfig nodes}";
+    };
+  };
+
+  commandNATModule = {
+    boot.kernel.sysctl = {
+      "net.netfilter.nf_conntrack_udp_timeout" = 30; # entry seen in one direction only (UNREPLIED)
+      "net.netfilter.nf_conntrack_udp_timeout_stream" = 120; # entry seen in both directions (ASSURED).
+    };
+
+    # Load this at boot time. `nf_conntrack` may be loaded
+    # systemd-sysctl.service runs after systemd-modules-load.service. Listing the module in boot.kernelModules makes it load first.
+    boot.kernelModules = [ "nf_conntrack" ];
   };
 
   # Write all IPs to a YAMl file.
@@ -80,9 +95,6 @@ let
       {
         imports = [ commonModule ];
 
-        environment.variables = {
-          CONFIG_FILE = "${writeConfig nodes}";
-        };
         virtualisation.interfaces = {
           lan = {
             vlan = vlans.lan-a;
@@ -98,11 +110,11 @@ let
       };
 
     # The router on side A.
-    nat-a = { nodes, ... }: {
-      imports = [ commonModule ];
-      environment.variables = {
-        CONFIG_FILE = "${writeConfig nodes}";
-      };
+    nat-a = {
+      imports = [
+        commonModule
+        commandNATModule
+      ];
 
       virtualisation.interfaces = {
         lan = {
@@ -164,10 +176,6 @@ let
       {
         imports = [ commonModule ];
 
-        environment.variables = {
-          CONFIG_FILE = "${writeConfig nodes}";
-        };
-
         virtualisation.interfaces = {
           lan = {
             vlan = vlans.lan-b;
@@ -182,12 +190,11 @@ let
       };
 
     # The router on side B.
-    nat-b = { nodes, ... }: {
-      imports = [ commonModule ];
-
-      environment.variables = {
-        CONFIG_FILE = "${writeConfig nodes}";
-      };
+    nat-b = {
+      imports = [
+        commonModule
+        commandNATModule
+      ];
 
       virtualisation.interfaces = {
         lan = {
@@ -217,7 +224,6 @@ let
 
     stun-server =
       {
-        nodes,
         pkgs,
         lib,
         ...
@@ -225,9 +231,6 @@ let
       {
         imports = [ commonModule ];
 
-        environment.variables = {
-          CONFIG_FILE = "${writeConfig nodes}";
-        };
         virtualisation.interfaces = {
           wan = {
             vlan = vlans.wan;
