@@ -110,7 +110,8 @@ table ip nixos-nat {
 kernel's `netfilter` framework. Its configuration is a ruleset, which NixOS
 generates in `/etc/nftables.conf`. Each chain in the ruleset is attached to one
 of the netfilter hooks `prerouting`, `input`, `forward`, `output` and
-`postrouting`. The kernel runs the chain for every packet that passes that hook.
+`postrouting` (see `nft list hooks`). The kernel runs the chain for every packet
+that passes that hook.
 
 ```mermaid
 flowchart LR
