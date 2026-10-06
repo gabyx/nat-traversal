@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use common::{
-    comm::{self},
+    comm::{self, parse_address},
     stun::{PUBLIC_STUN_SERVER, send_stun_binding_request},
 };
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,14 @@ struct Args {
         help = "Which side this client is on."
     )]
     side: comm::Side,
+
+    #[clap(
+        long,
+        default_value = "",
+        value_parser = |v: &str| { parse_address(v, PUBLIC_STUN_SERVER)},
+        help = "The address of the stun server to use."
+    )]
+    stun_server: (String, u16),
 
     // Only to test the STUN response, the NAT traversal is an IPv4 problem
     // since the IPv6 is the identity function on a NAT:
@@ -62,6 +70,7 @@ fn main() -> Result<()> {
     let log = build_logger();
 
     info!(log, "Starting up"; "side" => ?args.side);
+    info!(log, "Stun server: '{:?}'", args.stun_server);
 
     let socket = start_socket(&log, args.ipv6, args.side)?;
     let (ip, port) = send_stun_binding_request(&log, args.ipv6, &socket, PUBLIC_STUN_SERVER)?;
@@ -73,22 +82,23 @@ fn main() -> Result<()> {
 }
 
 fn start_socket(log: &Logger, ipv6: bool, side: comm::Side) -> Result<net::UdpSocket> {
-    // NOTE: We must take 127.0.0.1 otherwise we cannot
+    // NOTE: We must not take 127.0.0.1 otherwise we cannot
     // send the STUN binding response to on off-host address.
     // cause that IP is the loop back device.
     // Instead let the kernel choose the IP.
     // The kernel picks a source IP per route, not per destination.
     // Every destination:
-    // - Google's STUN server,
-    // - out other peer,
+    // - STUN server,
+    // - out to other peer,
     // resolves to the same default route, same interface, same source IP.
     // Two different destinations, one source address.
     // And the part that actually matters for NAT traversal is the source port.
     // So the kernel uses port 10010 for every packet from that socket
-    // regardless of destination. It does not re-pick a port per peer. That's exactly the invariant "use one socket" is protecting.
+    // regardless of destination.
+    // It does not re-pick a port per peer. That's exactly the invariant "use one socket" is protecting.
     //
     // NOTE: The socket has to talk to two different peers over its lifetime:
-    // Google's STUN server, and the other side of the ping-pong.
+    // STUN server, and the other side of the ping-pong.
     // a `socket.connect()` does not make sense and anyway is a sole kernel
     // operation on UDP sockets.
     //

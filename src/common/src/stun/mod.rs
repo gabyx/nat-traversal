@@ -55,6 +55,7 @@ const MAGIC_COOKIE: u32 = 0x2112_A442; // In Big-endian u32.
 //  which gives:
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[allow(clippy::enum_variant_names)]
 enum MsgType {
     BindingRequest = 0x0001,
     BindingResponse = 0x0101,
@@ -157,6 +158,7 @@ impl<T: Borrow<[u8; HEADER_LEN]>> StunHeaderImpl<T> {
         m.try_into()
     }
 
+    #[allow(dead_code)]
     fn length(&self) -> u16 {
         let b: &[u8; HEADER_LEN] = self.0.borrow();
         u16::from_be_bytes(
