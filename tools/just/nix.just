@@ -48,8 +48,6 @@ run attrname *args:
     flake_dir="$root_dir/tools/nix"
     nix_args=("${@:2}")
 
-    mkdir -p .output/package
-    outlink=".output/package/{{attrname}}"
     nix run \
         --accept-flake-config \
         "${nix_args[@]}" \
