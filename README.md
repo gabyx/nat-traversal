@@ -8,15 +8,12 @@
 [![Pipeline Status](https://img.shields.io/github/actions/workflow/status/gabyx/socket-rs/normal.yaml?label=ci)](https://github.com/gabyx/socket-rs/actions/workflows/normal.yaml)
 [![License label](https://img.shields.io/badge/License-MIT-blue.svg?)](https://mit-license.org/)
 
-## NAT Traversal Learning Exercise
+## NAT Traversal
 
-Base on the [nice article](https://tailscale.com/blog/how-nat-traversal-works) I was wondering can
-I test and learn about NAT Traversal with a NixOS VM Test + some Rust
-code which runs on each client side A and B.
-That repository is the experimental sandbox for this. 🤭
+This little **learning experiment** contains a Rust exectuble to learn how
+NAT-traversal (a.k.a hole-punching) works based on this [nice article](https://tailscale.com/blog/how-nat-traversal-works). Most of the stuff here is handwritten and not AI generated. AI was only used for exploring the problem space.
 
-This little learning experiment contains a Rust exectuble to learn how
-NAT-traversal (a.k.a hole-punching) works. For the experiment we setup a NixOS
+For the experiment we setup a NixOS
 VM test with the following nodes which are all NixOS configurations:
 
 ```mermaid
