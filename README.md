@@ -1,5 +1,5 @@
 <h1 align="center">
-  nat-traversal-rs
+  nat-traversal
 </h1>
 <p align="center">
 </p>
