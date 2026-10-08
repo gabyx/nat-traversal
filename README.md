@@ -10,6 +10,11 @@
 
 ## NAT Traversal Learning Exercise
 
+Base on the [nice article](https://tailscale.com/blog/how-nat-traversal-works) I was wondering can
+I test and learn about NAT Traversal with a NixOS VM Test + some Rust
+code which runs on each client side A and B.
+That repository is the experimental sandbox for this. 🤭
+
 This little learning experiment contains a Rust exectuble to learn how
 NAT-traversal (a.k.a hole-punching) works. For the experiment we setup a NixOS
 VM test with the following nodes which are all NixOS configurations:
