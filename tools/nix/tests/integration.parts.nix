@@ -86,7 +86,7 @@
               side_a.systemctl("start client-app.service")
               side_b.systemctl("start client-app.service")
 
-              log.info("Check client-app.")
+              log.info("Check client-app has completed successfully (in state active).")
               side_a.wait_for_unit("client-app.service")
               side_b.wait_for_unit("client-app.service")
           '';

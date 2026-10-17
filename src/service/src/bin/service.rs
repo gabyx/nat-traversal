@@ -7,7 +7,7 @@ use common::{
 use serde::{Deserialize, Serialize};
 use slog::{Drain, Logger, info, o, warn};
 use std::{
-    net::{self, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
+    net::{self, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
     path::PathBuf,
     str::FromStr,
     thread::{self, sleep},
@@ -122,19 +122,19 @@ fn discover_address(log: &Logger, args: &Args, socket: &UdpSocket) -> Result<Soc
             let f_other = file(args.side.other());
 
             let Ok(mut f) = std::fs::File::create(&f) else {
-                Err(anyhow!("Could not open file {}.", f.display()))?
+                Err(anyhow!("Could not open file '{}'.", f.display()))?
             };
             write!(&mut f, "{ip}:{port}")?;
 
+            info!(log, "Wait for exchange file '{f_other:?}'.");
             for _ in 0..10 {
                 if f_other.exists() {
                     break;
                 }
-                info!(log, "Wait for exchange file {f_other:?}.");
                 thread::sleep(Duration::from_millis(500));
             }
             let Ok(data) = std::fs::read_to_string(&f_other) else {
-                Err(anyhow!("Could not open file {}.", f_other.display()))?
+                Err(anyhow!("Could not open file '{}'.", f_other.display()))?
             };
 
             let (ip, port) = parse_address(&data, None)?;
@@ -223,15 +223,20 @@ fn ping_pong(
 
     let mut data = vec![];
 
-    for i in 0..10 {
+    let n_sends = 10;
+    let mut success_count = 0;
+    let success_threshold = 0;
+
+    for i in 0..n_sends {
         let ping = Ping { seq: i, side };
 
         data.clear();
         data = postcard::to_extend(&ping, data).context("could not serialize")?;
+
         info!(log, "Sending ping to '{other_addr}'."; "i" => i);
         match sock.send_to(&data, other_addr) {
-            Ok(s) if s != data.len() => warn!(log, "could not send datagram"),
-            Err(e) => warn!(log, "could not send: {e}"),
+            Ok(s) if s != data.len() => warn!(log, "Could not send datagram"),
+            Err(e) => warn!(log, "Could not send: {e}"),
             Ok(_) => {}
         }
 
@@ -239,16 +244,16 @@ fn ping_pong(
         match sock.recv_from(&mut data) {
             Ok((b, addr)) => {
                 if addr != other_addr {
-                    warn!(log, "receive from unknown source '{addr}'");
+                    warn!(log, "Receive from unknown source '{addr}'");
                     continue;
                 }
                 if b == 0 {
-                    warn!(log, "receive no bytes from '{addr}'");
+                    warn!(log, "Receive no bytes from '{addr}'");
                     continue;
                 }
             }
             Err(e) => {
-                warn!(log, "receive failed: {e}");
+                warn!(log, "Receive failed: {e}");
                 continue;
             }
         }
@@ -256,16 +261,24 @@ fn ping_pong(
         let recv = match postcard::from_bytes::<Ping>(&data) {
             Ok(p) => p,
             Err(e) => {
-                warn!(log, "could not decode msg: {e}");
+                warn!(log, "Could not decode msg: {e}");
                 continue;
             }
         };
 
         info!(log, "Received: {recv:?}");
+        success_count += 1;
+
         if recv.seq != i {
             warn!(log, "Message is not in sequence {} != {i}.", recv.seq);
         }
     }
 
-    Ok(())
+    if success_count >= success_threshold {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "ping pongs failed: only {success_count}/{n_sends} worked"
+        ))
+    }
 }
