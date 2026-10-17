@@ -43,7 +43,7 @@
             from dataclasses import dataclass
             from datetime import timedelta
 
-            serial_stdout_off()
+            # serial_stdout_off()
 
             @dataclass
             class Machines:
@@ -83,8 +83,8 @@
 
             with subtest("Check that side-a and side-b have completed successfully."):
               log.info("Start client-app.")
-              side_a.systemctl("start client-app.service")
-              side_b.systemctl("start client-app.service")
+              side_a.systemctl("start --no-block client-app.service")
+              side_b.systemctl("start --no-block client-app.service")
 
               log.info("Check client-app has completed successfully (in state active).")
               side_a.wait_for_unit("client-app.service")
