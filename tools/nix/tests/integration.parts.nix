@@ -15,18 +15,24 @@
       packages.integration-test = pkgs.testers.runNixOSTest {
         name = "integration-test";
 
+        inherit nodes;
+
         # node.pkgsReadOnly = true;
         globalTimeout = 30;
         sshBackdoor.enable = true;
 
-        inherit nodes;
-
-        # Add stuff only for the interactive system.
-        interactive.nodes.stun-server = { pkgs, ... }: {
-          environment.systemPackages = [
-            pkgs.coreutils
-          ];
-        };
+        # Add stuff only for the interactive test driver.
+        interactive.nodes = lib.concatMapAttrs (nodeName: _: {
+          "${nodeName}" = { pkgs, ... }: {
+            virtualisation.resolution = {
+              x = 1920;
+              y = 1080;
+            };
+            environment.systemPackages = [
+              pkgs.coreutils
+            ];
+          };
+        }) nodes;
 
         # References: In nixpkgs repo:
         # Path: `nixos/lib/test-driver/src/test_driver`
@@ -76,6 +82,11 @@
                 log.info(f"Binding request response:\n{stdout}")
 
             with subtest("Check that side-a and side-b have completed successfully."):
+              log.info("Start client-app.")
+              side_a.systemctl("start client-app.service")
+              side_b.systemctl("start client-app.service")
+
+              log.info("Check client-app.")
               side_a.wait_for_unit("client-app.service")
               side_b.wait_for_unit("client-app.service")
           '';

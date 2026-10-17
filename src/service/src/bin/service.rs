@@ -46,7 +46,7 @@ struct Args {
 
     #[clap(
         long,
-        default_value_os_t = std::env::temp_dir().join("nat-traversal"),
+        default_value_os_t = std::env::temp_dir().join("shared"),
         help = "The exchange folder to look for a file `side-[a,b].address` which contains the other sides address."
     )]
     exchange_dir: PathBuf,
@@ -122,19 +122,19 @@ fn discover_address(log: &Logger, args: &Args, socket: &UdpSocket) -> Result<Soc
             let f_other = file(args.side.other());
 
             let Ok(mut f) = std::fs::File::create(&f) else {
-                Err(anyhow!("Could not open file '{}'.", f.display()))?
+                Err(anyhow!("Could not open file {}.", f.display()))?
             };
             write!(&mut f, "{ip}:{port}")?;
 
-            info!(log, "Wait for exchange file '{f_other:?}'.");
             for _ in 0..10 {
                 if f_other.exists() {
                     break;
                 }
+                info!(log, "Wait for exchange file {f_other:?}.");
                 thread::sleep(Duration::from_millis(500));
             }
             let Ok(data) = std::fs::read_to_string(&f_other) else {
-                Err(anyhow!("Could not open file '{}'.", f_other.display()))?
+                Err(anyhow!("Could not open file {}.", f_other.display()))?
             };
 
             let (ip, port) = parse_address(&data, None)?;

@@ -50,14 +50,20 @@ impl From<Side> for &'static str {
 /// Parses an address into IP and port.
 #[allow(clippy::unnecessary_wraps)]
 pub fn parse_address(v: &str, default: Option<(&str, u16)>) -> Result<(String, u16)> {
-    if let Some(ip) = v.split_once(':') {
-        let p: u16 = ip.1.parse().unwrap_or(3478);
-        return Ok((ip.0.to_owned(), p));
+    if v.is_empty() {
+        let Some(d) = default else {
+            return Err(anyhow!("Could not parse address '{v}'."));
+        };
+
+        return Ok((d.0.to_owned(), d.1));
     }
 
-    if let Some(d) = default {
-        Ok((d.0.to_owned(), d.1))
-    } else {
-        Err(anyhow!("Could not parse address '{v}'."))
+    let ip: Vec<&str> = v.splitn(2, ':').collect();
+
+    let mut p: u16 = 3478;
+    if ip.len() > 1 {
+        p = ip[1].parse().unwrap_or(p);
     }
+
+    Ok((ip[0].to_owned(), p))
 }

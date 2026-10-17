@@ -81,7 +81,8 @@ let
     # interface is still address-less.
     wants = [ "network-online.target" ];
     after = [ "network-online.target" ];
-    wantedBy = [ "multi-user.target" ];
+
+    # unitConfig.RequiresMountsFor = [ "/tmp/shared" ];
 
     serviceConfig = {
       ExecStart = lib.escapeShellArgs [
@@ -94,19 +95,18 @@ let
         nodes.stun-server.networking.primaryIPAddress
       ];
 
-      DynamicUser = true;
+      # DynamicUser = true; # Creates a a fresh /tmp.
       Restart = "on-failure";
 
+      Type = "oneshot";
       # After successful executing `state: (activating)` the unit becomes `active`
       # which can be easily checked with systemd if the service worked.
       RemainAfterExit = true;
 
-      OneShot = true;
+      # BindPaths = [ "/tmp/shared" ]; # We exchange information over this folder.
 
       # The daemon only needs a UDP socket.
-      ProtectSystem = "strict";
       ProtectHome = true;
-      PrivateTmp = true;
       PrivateDevices = true;
       NoNewPrivileges = true;
     };
