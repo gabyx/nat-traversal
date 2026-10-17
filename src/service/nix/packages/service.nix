@@ -19,7 +19,7 @@ let
   };
 
   buildType = "debug";
-  target = "main";
+  target = "service";
 in
 rustPlatform.buildRustPackage {
   pname = "service";
