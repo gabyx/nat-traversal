@@ -52,6 +52,13 @@ test-integration *args:
     export SHARED_DIR="{{output_dir}}/tests/integration/shared"
     just nix::run integration-test.driver
 
+# Run the integration tests (NixOS VM tests).
+[group('general')]
+test-integration-interactive *args:
+    #!/usr/bin/env bash
+    export SHARED_DIR="{{output_dir}}/tests/integration/shared"
+    just nix::run integration-test.driverInteractive
+
 # Watch `cargo build|run|test ...` commands.
 [group('general')]
 watch *args:

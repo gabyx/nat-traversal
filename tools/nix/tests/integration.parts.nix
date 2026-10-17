@@ -75,7 +75,7 @@
                 t.assertEqual(stat, 0, "Could not do binding request.")
                 log.info(f"Binding request response:\n{stdout}")
 
-            with subtest(f"Check that side-a and side-b have completed successfully.")
+            with subtest("Check that side-a and side-b have completed successfully."):
               side_a.wait_for_unit("client-app.service")
               side_b.wait_for_unit("client-app.service")
           '';

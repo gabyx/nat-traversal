@@ -7,8 +7,17 @@
 let
   inherit (self.lib) fs;
 
-  compFileset = ./../../../..;
-  lockFile = "${compFileset}/Cargo.lock";
+  compFileset = ./../../..;
+  lockFile = fs.repoRoot + "/Cargo.lock";
+
+  src = fs.toSource {
+    filesets = [
+      compFileset
+      lockFile
+      (fs.repoRoot + "/Cargo.toml")
+    ];
+  };
+
   buildType = "debug";
   target = "main";
 in
@@ -16,7 +25,7 @@ rustPlatform.buildRustPackage {
   pname = "service";
   version = "0.0.1";
 
-  src = fs.toSource { filesets = [ compFileset ]; };
+  inherit src;
 
   cargoDeps = rustPlatform.importCargoLock {
     inherit lockFile;

@@ -73,7 +73,7 @@ let
       )
     );
 
-  mkClientService = side: {
+  mkClientService = nodes: side: {
     description = "The client service executable.";
 
     # `network-online.target` is only reached once an address is actually
@@ -152,7 +152,7 @@ let
           interface = "lan";
         };
 
-        systemd.services.client-app = mkClientService "a";
+        systemd.services.client-app = mkClientService nodes "a";
       };
 
     # The router on side A.
@@ -234,7 +234,7 @@ let
           interface = "lan";
         };
 
-        systemd.services.client-app = mkClientService "b";
+        systemd.services.client-app = mkClientService nodes "b";
       };
 
     # The router on side B.
