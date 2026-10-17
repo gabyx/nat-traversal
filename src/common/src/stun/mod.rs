@@ -219,7 +219,7 @@ pub fn send_stun_binding_request(
     log: &Logger,
     ipv6: bool,
     socket: &net::UdpSocket,
-    server: (&str, u16),
+    server: &(String, u16),
 ) -> Result<(IpAddr, Port)> {
     info!(log, "Resolve address to public server {server:?}.");
     let server: SocketAddr = server

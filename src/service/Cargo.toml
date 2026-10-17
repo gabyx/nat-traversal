@@ -1,15 +1,13 @@
 [package]
-  name = 'main'
+  name = 'service'
   version = '0.0.1'
+  edition = "2024"
   description = "Test example for NAT traversal with Rust. A learning project."
-  license = ""
-  homepage = " https://github.com/gabyx/socket-rs "
+  homepage = "https://github.com/gabyx/nat-traversal"
   keywords = []
   authors = [
-  "Alice Wonderland <alice.wonderland@sdsc.ethz.ch>",
-  "Bob Wonderland <bob.wonderland@sdsc.ethz.ch>",
+    "Gabriel Nützi"
   ]
-  edition = "2024"
 
 [dependencies]
   anyhow = "1.0.102"

@@ -1,7 +1,7 @@
 [workspace]
   members = [
   "src/common",
-  "src/main",
+  "src/service",
   ]
   resolver = "2"
 

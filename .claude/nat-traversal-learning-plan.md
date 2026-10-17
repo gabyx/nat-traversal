@@ -152,12 +152,6 @@ by hand.
   3. A test script that starts both peers and asserts each reports a reflexive
      `ip:port` that differs from its own LAN address.
 
-- **Make it a knob, not a constant:** parameterise the driver over NAT flavour
-  so M4–M6 can reuse it. `--random-fully` on the MASQUERADE rule (via
-  `networking.nat.extraCommands`, or an explicit nftables ruleset) forces a
-  fresh random public port per destination — that is your symmetric NAT for M6.
-  Take the flavour as a function argument from the first version; retrofitting
-  it later is the expensive path.
 - **Watch out:**
   - Disable `networking.firewall` on the two peer nodes. Otherwise you are
     testing the peer's own firewall rather than the router's NAT, and M4 will

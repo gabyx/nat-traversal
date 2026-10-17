@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
-use clap::Parser;
+use anyhow::{Context, Result, anyhow};
+use clap::{Parser, ValueEnum};
 use common::{
     comm::{self, parse_address},
     stun::{PUBLIC_STUN_SERVER, send_stun_binding_request},
@@ -7,10 +7,20 @@ use common::{
 use serde::{Deserialize, Serialize};
 use slog::{Drain, Logger, info, o, warn};
 use std::{
-    net::{self, Ipv4Addr, Ipv6Addr, SocketAddr},
-    thread::sleep,
+    net::{self, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
+    path::PathBuf,
+    str::FromStr,
+    thread::{self, sleep},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+use std::io::prelude::*;
+
+#[derive(Debug, Clone, Copy, ValueEnum, Serialize, Deserialize, PartialEq)]
+enum AddressDiscovery {
+    Hardcoded,
+    StunAndExchange,
+}
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -24,9 +34,27 @@ struct Args {
     side: comm::Side,
 
     #[clap(
+        short,
+        long,
+        default_value = "stun-and-exchange",
+        help =
+        ("What method we should use for address discovery\n".to_owned())+
+        "to contact the other side."
+        ,
+    )]
+    other_side_mode: AddressDiscovery,
+
+    #[clap(
+        long,
+        default_value_os_t = std::env::temp_dir().join("nat-traversal"),
+        help = "The exchange folder to look for a file `side-[a,b].address` which contains the other sides address."
+    )]
+    exchange_dir: PathBuf,
+
+    #[clap(
         long,
         default_value = "",
-        value_parser = |v: &str| { parse_address(v, PUBLIC_STUN_SERVER)},
+        value_parser = |v: &str| { parse_address(v, Some(PUBLIC_STUN_SERVER))},
         help = "The address of the stun server to use."
     )]
     stun_server: (String, u16),
@@ -73,12 +101,63 @@ fn main() -> Result<()> {
     info!(log, "Stun server: '{:?}'", args.stun_server);
 
     let socket = start_socket(&log, args.ipv6, args.side)?;
-    let (ip, port) = send_stun_binding_request(&log, args.ipv6, &socket, PUBLIC_STUN_SERVER)?;
-    info!(log, "Discovered own address over STUN: {ip}:{port}");
 
-    ping_pong(&log, args.ipv6, args.side, &socket)?;
+    let other_socker_addr = discover_address(&log, &args, &socket)?;
+
+    ping_pong(&log, args.side, other_socker_addr, &socket)?;
 
     Ok(())
+}
+
+fn discover_address(log: &Logger, args: &Args, socket: &UdpSocket) -> Result<SocketAddr> {
+    let addr: SocketAddr = match args.other_side_mode {
+        AddressDiscovery::StunAndExchange => {
+            let (ip, port) = send_stun_binding_request(log, args.ipv6, socket, &args.stun_server)?;
+            info!(log, "Discovered own address over STUN: {ip}:{port}");
+
+            std::fs::create_dir_all(&args.exchange_dir)?;
+            let file = |side| args.exchange_dir.join(format!("side-{side:?}.address"));
+
+            let f = file(args.side);
+            let f_other = file(args.side.other());
+
+            let Ok(mut f) = std::fs::File::create(&f) else {
+                Err(anyhow!("Could not open file '{}'.", f.display()))?
+            };
+            write!(&mut f, "{ip}:{port}")?;
+
+            info!(log, "Wait for exchange file '{f_other:?}'.");
+            for _ in 0..10 {
+                if f_other.exists() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(500));
+            }
+            let Ok(data) = std::fs::read_to_string(&f_other) else {
+                Err(anyhow!("Could not open file '{}'.", f_other.display()))?
+            };
+
+            let (ip, port) = parse_address(&data, None)?;
+
+            if args.ipv6 {
+                (Ipv6Addr::from_str(&ip)?, port).into()
+            } else {
+                (Ipv4Addr::from_str(&ip)?, port).into()
+            }
+        }
+        AddressDiscovery::Hardcoded => {
+            info!(log, "Using hardcoded address of other side.");
+            if args.ipv6 {
+                (Ipv6Addr::LOCALHOST, args.side.other().port()).into()
+            } else {
+                (Ipv4Addr::LOCALHOST, args.side.other().port()).into()
+            }
+        }
+    };
+
+    info!(log, "Other sides address: '{addr}'.");
+
+    Ok(addr)
 }
 
 fn start_socket(log: &Logger, ipv6: bool, side: comm::Side) -> Result<net::UdpSocket> {
@@ -134,13 +213,13 @@ fn wait_for_sync_point(log: &Logger) {
 }
 
 #[allow(clippy::similar_names)]
-fn ping_pong(log: &Logger, ipv6: bool, side: comm::Side, sock: &net::UdpSocket) -> Result<()> {
+fn ping_pong(
+    log: &Logger,
+    side: comm::Side,
+    other_addr: SocketAddr,
+    sock: &net::UdpSocket,
+) -> Result<()> {
     wait_for_sync_point(log);
-    let other_addr: SocketAddr = if ipv6 {
-        (Ipv6Addr::LOCALHOST, side.other().port()).into()
-    } else {
-        (Ipv4Addr::LOCALHOST, side.other().port()).into()
-    };
 
     let mut data = vec![];
 
@@ -149,7 +228,7 @@ fn ping_pong(log: &Logger, ipv6: bool, side: comm::Side, sock: &net::UdpSocket) 
 
         data.clear();
         data = postcard::to_extend(&ping, data).context("could not serialize")?;
-        info!(log, "Sending ping."; "i" => i);
+        info!(log, "Sending ping to '{other_addr}'."; "i" => i);
         match sock.send_to(&data, other_addr) {
             Ok(s) if s != data.len() => warn!(log, "could not send datagram"),
             Err(e) => warn!(log, "could not send: {e}"),

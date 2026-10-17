@@ -14,9 +14,8 @@
   clap = { version = "4.6.0", features = ['derive']}
   serde = { version = "1", features = ["derive"] }
   slog = "2.8.2"
-  slog-async = "2.8.0"
-  slog-term = "2.9.2"
 
 [lints.clippy]
   pedantic = "deny"
   needless_return = "warn"
+  missing_errors_doc = "allow"

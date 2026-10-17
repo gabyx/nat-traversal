@@ -7,7 +7,8 @@
 let
   inherit (self.lib) fs;
 
-  compFileset = ./../..;
+  compFileset = ./../../../..;
+  lockFile = "${compFileset}/Cargo.lock";
   buildType = "debug";
   target = "main";
 in
@@ -33,7 +34,7 @@ rustPlatform.buildRustPackage {
 
   meta = {
     description = "service";
-    homepage = "https://github.com/gabyx/socket-rs";
+    homepage = "https://github.com/gabyx/nat-traversal";
     license = lib.licenses.mit;
     maintainers = [ "gabyx" ];
     mainProgram = "service";

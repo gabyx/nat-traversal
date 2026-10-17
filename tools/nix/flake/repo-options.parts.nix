@@ -29,4 +29,10 @@ in
       };
     }
   );
+
+  config = {
+    perSystem = { config, ... }: {
+      legacyPackages.repo = config.repo;
+    };
+  };
 }

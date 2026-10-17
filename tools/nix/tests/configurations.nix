@@ -1,4 +1,9 @@
-{ pkgs, lib, ... }:
+{
+  pkgs,
+  lib,
+  clientApp,
+  ...
+}:
 let
   # NOTE: https://applicative.systems/nixos-test-driver-manual/
 
@@ -68,6 +73,45 @@ let
       )
     );
 
+  mkClientService = side: {
+    description = "The client service executable.";
+
+    # `network-online.target` is only reached once an address is actually
+    # configured on `wan`; without it the unit can start while the
+    # interface is still address-less.
+    wants = [ "network-online.target" ];
+    after = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+
+    serviceConfig = {
+      ExecStart = lib.escapeShellArgs [
+        (lib.getExe clientApp)
+        "--side"
+        side
+        "--other-side-mode"
+        "stun-and-exchange"
+        "--stun-server"
+        nodes.stun-server.networking.primaryIPAddress
+      ];
+
+      DynamicUser = true;
+      Restart = "on-failure";
+
+      # After successful executing `state: (activating)` the unit becomes `active`
+      # which can be easily checked with systemd if the service worked.
+      RemainAfterExit = true;
+
+      OneShot = true;
+
+      # The daemon only needs a UDP socket.
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      PrivateTmp = true;
+      PrivateDevices = true;
+      NoNewPrivileges = true;
+    };
+  };
+
   nodes = {
 
     #   NODE                    NODE                        NODE                    NODE
@@ -107,6 +151,8 @@ let
           address = nodes.nat-a.networking.primaryIPAddress;
           interface = "lan";
         };
+
+        systemd.services.client-app = mkClientService "a";
       };
 
     # The router on side A.
@@ -187,6 +233,8 @@ let
           address = nodes.nat-b.networking.primaryIPAddress;
           interface = "lan";
         };
+
+        systemd.services.client-app = mkClientService "b";
       };
 
     # The router on side B.

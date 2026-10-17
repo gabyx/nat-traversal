@@ -1,8 +1,11 @@
 { lib, ... }: {
   perSystem =
-    { pkgs, ... }:
+    { pkgs, self', ... }:
     let
-      config = import ./configurations.nix { inherit lib pkgs; };
+      config = import ./configurations.nix {
+        inherit lib pkgs;
+        clientApp = self'.packages.service;
+      };
       inherit (config) nodes;
     in
     {
@@ -71,6 +74,10 @@
                 stat, stdout = side_a.execute(f"stunclient {stun_server_ip} 3478")
                 t.assertEqual(stat, 0, "Could not do binding request.")
                 log.info(f"Binding request response:\n{stdout}")
+
+            with subtest(f"Check that side-a and side-b have completed successfully.")
+              side_a.wait_for_unit("client-app.service")
+              side_b.wait_for_unit("client-app.service")
           '';
       };
     };
