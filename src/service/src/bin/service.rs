@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use clap::{Parser, ValueEnum};
 use common::{
     comm::{self, parse_address},
+    retry,
     stun::{PUBLIC_STUN_SERVER, send_stun_binding_request},
 };
 use serde::{Deserialize, Serialize};
@@ -124,26 +125,27 @@ fn discover_address(log: &Logger, args: &Args, socket: &UdpSocket) -> Result<Soc
             let Ok(mut f) = std::fs::File::create(&f) else {
                 Err(anyhow!("Could not open file '{}'.", f.display()))?
             };
-            write!(&mut f, "{ip}:{port}")?;
+            writeln!(&mut f, "{ip}:{port}")?;
 
             info!(log, "Wait for exchange file '{f_other:?}'.");
-            for _ in 0..10 {
-                if f_other.exists() {
-                    break;
+
+            let parse = || -> Result<SocketAddr> {
+                let data = std::fs::read_to_string(&f_other)?;
+
+                if !data.contains('\n') {
+                    return Err(anyhow!("not all information read"));
                 }
-                thread::sleep(Duration::from_millis(500));
-            }
-            let Ok(data) = std::fs::read_to_string(&f_other) else {
-                Err(anyhow!("Could not open file '{}'.", f_other.display()))?
+
+                let (ip, port) = parse_address(&data, None)?;
+
+                if args.ipv6 {
+                    Ok((Ipv6Addr::from_str(&ip)?, port).into())
+                } else {
+                    Ok((Ipv4Addr::from_str(&ip)?, port).into())
+                }
             };
 
-            let (ip, port) = parse_address(&data, None)?;
-
-            if args.ipv6 {
-                (Ipv6Addr::from_str(&ip)?, port).into()
-            } else {
-                (Ipv4Addr::from_str(&ip)?, port).into()
-            }
+            retry(log, 10, Duration::from_millis(500), parse)?
         }
         AddressDiscovery::Hardcoded => {
             info!(log, "Using hardcoded address of other side.");
