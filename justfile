@@ -50,14 +50,20 @@ test *args:
 test-integration *args:
     #!/usr/bin/env bash
     export SHARED_DIR="{{output_dir}}/tests/integration/shared"
-    just nix::run integration-test.driver
+    just nix::run test-integration.driver
 
 # Run the integration tests (NixOS VM tests).
 [group('general')]
 test-integration-interactive *args:
     #!/usr/bin/env bash
     export SHARED_DIR="{{output_dir}}/tests/integration/shared"
-    just nix::run integration-test.driverInteractive
+    just nix::run test-integration.driverInteractive
+
+[private]
+test-integration-ci *args:
+    #!/usr/bin/env bash
+    export SHARED_DIR="{{output_dir}}/tests/integration/shared"
+    just nix::run test-integration-ci.driver
 
 # Watch `cargo build|run|test ...` commands.
 [group('general')]
