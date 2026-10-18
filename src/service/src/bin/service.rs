@@ -8,10 +8,10 @@ use common::{
 use serde::{Deserialize, Serialize};
 use slog::{Drain, Logger, info, o, warn};
 use std::{
-    net::{self, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
+    net::{self, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
     path::PathBuf,
     str::FromStr,
-    thread::{self, sleep},
+    thread::sleep,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -54,8 +54,10 @@ struct Args {
 
     #[clap(
         long,
-        default_value = "",
-        value_parser = |v: &str| { parse_address(v, Some(PUBLIC_STUN_SERVER))},
+        default_value = PUBLIC_STUN_SERVER.0,
+        value_parser = |v: &str| -> Result<(String, u16)> {
+            parse_address(v, Some(("", 3478)))
+        },
         help = "The address of the stun server to use."
     )]
     stun_server: (String, u16),
@@ -126,26 +128,24 @@ fn discover_address(log: &Logger, args: &Args, socket: &UdpSocket) -> Result<Soc
                 Err(anyhow!("Could not open file '{}'.", f.display()))?
             };
             writeln!(&mut f, "{ip}:{port}")?;
+            drop(f);
 
             info!(log, "Wait for exchange file '{f_other:?}'.");
 
             let parse = || -> Result<SocketAddr> {
                 let data = std::fs::read_to_string(&f_other)?;
 
-                if !data.contains('\n') {
-                    return Err(anyhow!("not all information read"));
-                }
+                let Some(data) = data.strip_suffix('\n') else {
+                    return Err(anyhow!("not all information read: {data}"));
+                };
 
-                let (ip, port) = parse_address(&data, None)?;
+                let addr = parse_address(data, None)?;
+                let ip = IpAddr::from_str(&addr.0)?;
 
-                if args.ipv6 {
-                    Ok((Ipv6Addr::from_str(&ip)?, port).into())
-                } else {
-                    Ok((Ipv4Addr::from_str(&ip)?, port).into())
-                }
+                Ok((ip, addr.1).into())
             };
 
-            retry(log, 10, Duration::from_millis(500), parse)?
+            retry(log, 10, Duration::from_millis(500), parse).context("no IP found in 5 secs.")?
         }
         AddressDiscovery::Hardcoded => {
             info!(log, "Using hardcoded address of other side.");

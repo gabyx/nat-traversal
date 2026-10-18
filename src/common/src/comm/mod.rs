@@ -1,7 +1,7 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use std::convert::From;
+use std::{convert::From, net::IpAddr, str::FromStr};
 
 pub type Port = u16;
 
@@ -48,22 +48,37 @@ impl From<Side> for &'static str {
 }
 
 /// Parses an address into IP and port.
-#[allow(clippy::unnecessary_wraps)]
 pub fn parse_address(v: &str, default: Option<(&str, u16)>) -> Result<(String, u16)> {
     if v.is_empty() {
-        let Some(d) = default else {
-            return Err(anyhow!("Could not parse address '{v}'."));
-        };
-
-        return Ok((d.0.to_owned(), d.1));
+        return default
+            .map(|(h, p)| (h.to_owned(), p))
+            .ok_or(anyhow!("nothing to parse and no defautl given"));
     }
 
-    let ip: Vec<&str> = v.splitn(2, ':').collect();
+    let (mut hostname, port_str) = match v.split_once(':') {
+        Some((ip, port)) => (ip, port),
+        None => (v, ""),
+    };
 
-    let mut p: u16 = 3478;
-    if ip.len() > 1 {
-        p = ip[1].parse().unwrap_or(p);
+    if hostname.is_empty() {
+        if let Some((h, _)) = default {
+            hostname = h;
+        } else {
+            return Err(anyhow!("no hostname set"));
+        }
     }
 
-    Ok((ip[0].to_owned(), p))
+    let port: u16 = if port_str.is_empty() {
+        if let Some((_, p)) = default {
+            p
+        } else {
+            return Err(anyhow!("not port set"));
+        }
+    } else {
+        port_str
+            .parse()
+            .with_context(|| format!("could not parse port '{port_str}'"))?
+    };
+
+    Ok((hostname.to_owned(), port))
 }
