@@ -1,5 +1,5 @@
-
 <!-- SPDX-License-Identifier: MIT -->
+
 # The MIT License (MIT)
 
 Copyright © 2026 - gabyx

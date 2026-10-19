@@ -1,11 +1,3 @@
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
-[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
 <h1 align="center">
   nat-traversal
 </h1>
