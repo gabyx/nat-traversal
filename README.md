@@ -1,3 +1,11 @@
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
+[warn] Ignored unknown option { comments: { "min-spaces-from-content": 2 } }.
 <h1 align="center">
   nat-traversal
 </h1>
@@ -11,10 +19,17 @@
 ## NAT Traversal
 
 This little **learning experiment** contains a Rust exectuble to learn how
-NAT-traversal (a.k.a hole-punching) works based on this [nice article](https://tailscale.com/blog/how-nat-traversal-works). Most of the stuff here is handwritten and not AI generated. AI was only used for exploring the problem space.
+NAT-traversal (a.k.a hole-punching) works based on this
+[nice article](https://tailscale.com/blog/how-nat-traversal-works).
 
-For the experiment we setup a NixOS
-VM test with the following nodes which are all NixOS configurations:
+> [!NOTE]
+>
+> All code here is not AI generated and human owned. AI was only used for
+> exploring the problem space and generating some ASCII Art and Diagrams. See
+> [Responsible AI Guide](https://responsibleai.guide/ai-assisted-coding-guide).
+
+For the experiment we setup a NixOS VM test with the following nodes which are
+all NixOS configurations:
 
 ```mermaid
 flowchart LR
